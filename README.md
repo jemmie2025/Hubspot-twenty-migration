@@ -2,27 +2,56 @@
 
 ## Overview
 
-This project implements the **Companies** component of the DATA-01 HubSpot-to-Twenty CRM migration.
+This repository contains the **Companies component of DATA-01: HubSpot to Twenty CRM Data Extraction & Migration Pipeline**.
 
-The workflow extracts Company records from HubSpot, transforms them into the required Twenty CRM schema, validates data quality, and generates clean CSV outputs for migration.
+The workflow extracts Company records from HubSpot, transforms them into the required Twenty CRM schema, validates data quality, generates exception reports, and prepares clean CSV data for migration.
+
+## Architecture
 
 ```text
-HubSpot API → Extract → Transform → Validate → CSV → Twenty CRM
+┌──────────────────────┐
+│     HubSpot CRM      │
+│    Companies API     │
+└──────────┬───────────┘
+           │ REST API / Bearer Auth
+           ▼
+┌──────────────────────┐
+│     companies.py     │
+│ • API Pagination     │
+│ • Field Extraction   │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Transform & Clean    │
+│ • Field Mapping      │
+│ • URL Normalization  │
+│ • Deduplication      │
+│ • Null Cleaning      │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│    companies.csv     │
+│  3,043 Companies     │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│validate_companies.py │
+│ • Names & Domains    │
+│ • Websites           │
+│ • Numeric Fields     │
+│ • Nulls/Duplicates   │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Reports + Test CSV   │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│      Twenty CRM      │
+│ Test Import Pending  │
+│ Workspace Access     │
+└──────────────────────┘
 ```
-
-## Scope
-
-The Companies workflow covers:
-
-- HubSpot API extraction with pagination
-- Twenty CRM field mapping
-- Domain and website normalization
-- Duplicate-domain detection
-- Numeric field validation
-- Null-value cleaning
-- Missing-data analysis
-- Exception reporting
-- Test-import preparation
 
 ## Field Mapping
 
@@ -41,42 +70,44 @@ The Companies workflow covers:
 
 ## Implementation
 
-`companies.py` retrieves Companies through HubSpot API pagination, maps the required properties, normalizes URLs and numeric values, removes duplicate populated domains, preserves missing values as blanks, and generates `companies.csv`.
+`companies.py` authenticates with HubSpot, retrieves Companies through API pagination, maps the required properties, normalizes URLs and numeric values, removes duplicate populated domains, preserves missing values as blanks, and generates `companies.csv`.
 
-`validate_companies.py` performs automated quality checks and generates exception reports for missing names and domains.
-
-## Final Validation
+`validate_companies.py` independently validates the transformed dataset and generates exception reports for records requiring review.
 
 ```text
-=== Companies Validation Report ===
-Total companies: 3043
-Missing company names: 60
-Companies with domain: 2250
-Missing domains: 793
-Duplicate domains: 0
-Invalid domains: 0
-Websites present: 2251
-Invalid website URLs: 0
-Invalid employee values: 0
-Invalid revenue values: 0
-Invalid null placeholders: 0
-
-=== Missing Data Analysis ===
-Missing BOTH name and domain: 30
-Missing name but domain available: 30
-
-=== Quality Status ===
-PASS: No formatting or duplicate-domain errors detected.
+Raw HubSpot Companies:  3047
+Final Companies:        3043
 ```
 
-Source-data exceptions were preserved rather than replaced with fabricated values:
+## Data Quality Results
 
-- `companies_missing_domains.csv` — **793 records**
-- `companies_missing_names.csv` — **60 records**
+```text
+Total Companies:               3043
+Missing Company Names:           60
+Companies with Domain:         2250
+Missing Domains:                793
+Missing Both Name & Domain:      30
+Duplicate Domains:                0
+Invalid Domains:                  0
+Websites Present:              2251
+Invalid Website URLs:             0
+Invalid Employee Values:          0
+Invalid Revenue Values:           0
+Invalid Null Placeholders:        0
+```
+
+**Quality Status:** PASS — no formatting or duplicate-domain errors detected.
+
+Source-data exceptions were preserved rather than fabricated:
+
+```text
+companies_missing_domains.csv → 793 records
+companies_missing_names.csv   → 60 records
+```
 
 ## Twenty CRM Test Preparation
 
-A 10-record `companies_test_import.csv` was prepared and locally validated:
+A clean 10-record test dataset was generated and validated against the required 10-column schema.
 
 ```text
 Records: 10
@@ -89,62 +120,121 @@ Invalid domains: 0
 
 The actual Twenty CRM schema verification and test import are **pending workspace access**.
 
-## Blockers & Resolutions
+## Commands Used
 
-### HubSpot Authentication
-Initial API requests returned a `401` authentication error. The Bearer authentication configuration was verified and corrected, after which HubSpot extraction succeeded.
-
-### WSL DNS
-A temporary `name resolution` error interrupted API connectivity. WSL networking was restarted and connectivity verified before continuing.
-
-### Twenty CRM Access
-The migration task requires destination-side schema verification and a test import. The test CSV is ready, but the actual import is pending access to the Twenty CRM workspace.
-
-## Evidence
-
-### Successful Companies Extraction
-
-The extraction retrieved **3,047 raw records** and produced **3,043 final Companies** after transformation and duplicate handling.
-
-![Companies Extraction](evidence/companies-extraction-success.png)
-
-### Validation Evidence
-
-![Companies Validation](evidence/companies-validation-report.png)
-
-## Run & Verify
+### Run Extraction and Validation
 
 ```bash
+cd ~/hubspot-twenty-migration
 source venv/bin/activate
 python companies.py
 python validate_companies.py
 ```
 
-Preview the output:
+### Preview Extracted Companies
 
 ```bash
 head -5 companies.csv
 ```
 
-## Security
+### Verify CSV Headers
 
-Sensitive credentials and CRM exports are excluded from Git:
+```bash
+python - <<'PY'
+import csv
+
+with open("companies.csv", encoding="utf-8-sig") as f:
+    reader = csv.DictReader(f)
+    for i, header in enumerate(reader.fieldnames, 1):
+        print(f"{i}. {header}")
+PY
+```
+
+### Verify Missing-Domain Records
+
+Python's CSV parser was used instead of `wc -l` because CSV fields may contain embedded line breaks.
+
+```bash
+python - <<'PY'
+import csv
+
+with open("companies_missing_domains.csv", encoding="utf-8-sig") as f:
+    print("Actual missing-domain records:", len(list(csv.DictReader(f))))
+PY
+```
+
+Result:
 
 ```text
+Actual missing-domain records: 793
+```
+
+### Git Workflow
+
+```bash
+git add .
+git status
+git commit -m "Update companies migration validation"
+git push origin main
+```
+
+## Evidence
+
+### Successful Companies Extraction
+
+The HubSpot API returned **3,047 raw records**, producing **3,043 final Companies** after transformation and duplicate handling.
+
+![Companies Extraction](evidence/companies-extraction-success.png)
+
+### Final Validation
+
+The final dataset passed the implemented formatting, duplicate, URL, numeric, and null-value checks.
+
+![Companies Validation](evidence/companies-validation-report.png)
+
+## Blockers & Resolutions
+
+**HubSpot Authentication — Resolved:** Initial requests returned `401 INVALID_AUTHENTICATION`. Bearer authentication was verified and the API connection succeeded.
+
+**WSL DNS — Resolved:** A temporary `name resolution` failure interrupted connectivity. WSL networking was restarted and connectivity restored.
+
+**CSV Record Count — Resolved:** Physical line counts differed because of embedded line breaks. Python `csv.DictReader` confirmed **793 logical missing-domain records**.
+
+**Twenty CRM Access — Pending:** The test dataset is locally validated, but destination schema verification and test import require Twenty CRM workspace access.
+
+## Security
+
+Sensitive credentials and generated CRM data are excluded from source control:
+
+```gitignore
 .env
 venv/
 __pycache__/
 *.csv
 ```
 
-The HubSpot access token is loaded from the environment and is never hard-coded or committed.
+The HubSpot token is loaded from the environment and is never hard-coded or committed.
+
+## Project Structure
+
+```text
+hubspot-twenty-migration/
+├── companies.py
+├── validate_companies.py
+├── README.md
+├── .gitignore
+└── evidence/
+    ├── companies-extraction-success.png
+    └── companies-validation-report.png
+```
 
 ## Status
 
-**Companies extraction, transformation, cleaning, validation, exception reporting, and test-import preparation are complete.**
+**Completed:** Companies extraction, transformation, normalization, deduplication, validation, exception reporting, and test-import preparation.
 
-Twenty CRM destination verification and test import remain pending workspace access.
+**Pending:** Twenty CRM workspace access for destination schema verification and test import.
 
 ---
 **Author:** Jemimah Godswill  
-**Component:** Companies Extraction, Transformation & Validate.
+**Project:** DATA-01 — HubSpot to Twenty CRM Migration  
+**Component:** Companies Extraction, Transformation & Validation
