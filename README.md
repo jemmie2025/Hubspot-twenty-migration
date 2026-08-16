@@ -164,46 +164,46 @@ deal_company_exceptions.csv
 CRM CSV files are intentionally excluded from Git because they may contain company/customer data.
 
 ---
-
 ## Evidence
 
-### Companies
+Execution evidence is organized by migration entity and processing sequence.
 
-**Extraction**
+### 1. Companies
 
+#### Extraction
 ![Companies Extraction](evidence/companies-extraction-success.png)
 
-**Validation**
-
+#### Validation
 ![Companies Validation](evidence/companies-validation-report.png)
 
-### Contacts / People
+---
 
-**Extraction**
+### 2. Contacts / People
 
+#### Extraction
 ![Contacts Extraction](evidence/contacts-extraction-report.png)
 
-**Company Relationship Resolution**
+#### Company Relationship Resolution
+![Contacts Company Resolution](evidence/contacts-company-resolution-report.png)
 
-![Contact Company Resolution](evidence/contacts-company-resolution-report.png)
-
-**Validation**
-
+#### Validation
 ![Contacts Validation](evidence/contacts-validation-report.png)
 
-### Deals / Opportunities
+---
 
-**Extraction**
+### 3. Deals / Opportunities
 
+#### Extraction
 ![Deals Extraction](evidence/deals-extraction-report.png)
 
-**Company Relationship Resolution**
+#### Company Relationship Resolution
+![Deals Company Resolution](evidence/deals-company-resolution-report.png)
 
-![Deal Company Resolution](evidence/deals-company-resolution-report.png)
-
-**Validation**
-
+#### Validation
 ![Opportunities Validation](evidence/opportunities-validation-report.png)
+
+
+
 
 ---
 
